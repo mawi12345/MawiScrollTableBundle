@@ -1,0 +1,5 @@
+services:
+    scrolltable:
+        class: Mawi\Bundle\ScrollTableBundle\Service\ScrollTableService
+        calls:
+            - [ setContainer, [ @service_container ] ]
