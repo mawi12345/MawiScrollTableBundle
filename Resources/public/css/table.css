@@ -1,14 +1,11 @@
-.scrolltable {
-	border: 1px solid black;
-}
 
-.scrolltable .row {
+.scrolltable .st-row {
 	padding: 5px;
 	height: 25px;
 	overflow: hidden;
 }
 
-.scrolltable .space {
+.scrolltable .st-space {
 	height: 35px;
 	overflow: hidden;
 }

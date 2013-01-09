@@ -5,6 +5,9 @@ class ScrollTable
 	constructor: (@options) ->
 		defaults =
 			debug: true
+			selector:
+				row: '.st-row'
+				space: '.st-space'
 			view:
 				start: 0
 				end: 0
@@ -22,7 +25,7 @@ class ScrollTable
 		@name = @el.attr('data-scrolltable');
 		@infoUrl = Routing.generate('scrolltable_info', {'name': @name})
 		@rowsUrl = Routing.generate('scrolltable_rows', {'name': @name})
-		@settings.lineHeight = @el.find('.row:first').outerHeight(); 
+		@settings.lineHeight = @el.find(@settings.selector.row).first().outerHeight(); 
 		@resize () => 
 			@fill()
 			@scroll()
@@ -64,8 +67,8 @@ class ScrollTable
 		)
 	refresh: =>
 		@resize () =>
-			@el.find('.row').remove()
-			@el.find('.space').remove().first().appendTo(@el);
+			@el.find(@settings.selector.row).remove()
+			@el.find(@settings.selector.space).remove().first().appendTo(@el);
 			@fill()
 			@settings.reload.last = -1000
 			@settings.view.start = 0
@@ -73,8 +76,8 @@ class ScrollTable
 				
 			@scroll()
 	fill: ->
-		rows = @el.find('.row')
-		space = @el.find('.space').detach().first()
+		rows = @el.find(@settings.selector.row)
+		space = @el.find(@settings.selector.space).detach().first()
 		@settings.positions = []
 		for row in rows
 			pos = $(row).attr('data-pos')*1
@@ -105,11 +108,14 @@ class ScrollTable
 		viewtop = $(document).scrollTop() - @el.position().top
 		return off if Math.abs(@settings.reload.last - viewtop) < (@settings.reload.min * @settings.lineHeight)
 		@settings.reload.last = viewtop
-		viewheight = $(window).height()
-		startrow = @pixelToRow(viewtop) - @settings.view.distance
-		endrow = @pixelToRow(viewtop+viewheight) + @settings.view.distance
+		viewheight = window.innerHeight
+		viewstartrow = @pixelToRow(viewtop)
+		viewendrow = @pixelToRow(viewtop+viewheight)
+		startrow = viewstartrow - @settings.view.distance
+		endrow = viewendrow + @settings.view.distance
 		startrow = 0 if startrow < 0
 		endrow = @settings.rows - 1 if endrow >= @settings.rows
+		@log('viewstartrow: '+viewstartrow+' viewendrow: '+viewendrow+' startrow: '+startrow+' endrow: '+endrow+' @el.position().top: '+@el.position().top)
 		if (@settings.view.start isnt startrow or @settings.view.end isnt endrow)
 			@loading = on
 			@settings.view.start = startrow
@@ -119,6 +125,9 @@ class ScrollTable
 		return off
 	
 	loadRows: (start, end) =>
+		@log('load '+start+' '+end);
+		#@loading = off
+		#return;
 		range = [start..end]
 		items = $.grep range, (item) =>
 			if $.inArray(item, @settings.positions) < 0
@@ -138,7 +147,7 @@ class ScrollTable
 			type: 'POST'
 			dataType: 'html'
 			success: (response) =>
-				rows = $(response).find('.row')
+				rows = $(response).find(@settings.selector.row)
 				#@log(rows)
 				for row in rows
 					@addRow(row)
@@ -184,6 +193,8 @@ class ScrollTable
 	delRow: (pos) =>
 		#@log('del:'+ pos)
 		$('[data-pos="'+pos+'"]').remove()
+	trigger: (event) =>
+		@settings.el.trigger(event)
 		
 $ ->
 	$.fn.extend
