@@ -1,0 +1,30 @@
+{
+    "name": "mawi/scrolltable-bundle",
+    "type": "symfony-bundle",
+    "description": "Symfony Scrolltable",
+    "keywords": ["Js endless scroll"],
+    "homepage": "https://github.com/mawi12345/MawiScrollTableBundle",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Martin Wind",
+            "email": "mawi1988@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.3.2",
+        "symfony/framework-bundle": ">=2.0,<2.3-dev",
+        "symfony/serializer": ">=2.0,<2.3-dev",
+        "symfony/console": ">=2.0,<2.3-dev"
+    },
+    "autoload": {
+        "psr-0": { "Mawi\\Bundle\\ScrollTableBundle": "" }
+    },
+    "target-dir": "Mawi/Bundle/ScrollTableBundle",
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.1-dev"
+        }
+    }
+}
