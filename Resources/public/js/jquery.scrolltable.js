@@ -39,10 +39,14 @@
           row: '.st-row',
           space: '.st-space'
         },
-        view: {
+        cache: {
           start: 0,
           end: 0,
           distance: 60
+        },
+        view: {
+          start: 0,
+          end: 0
         },
         reload: {
           last: -1000,
@@ -142,8 +146,8 @@
         _this.el.find(_this.settings.selector.space).remove().first().appendTo(_this.el);
         _this.fill();
         _this.settings.reload.last = -1000;
-        _this.settings.view.start = 0;
-        _this.settings.view.end = 0;
+        _this.settings.cache.start = 0;
+        _this.settings.cache.end = 0;
         return _this.scroll();
       });
     };
@@ -192,26 +196,37 @@
         return false;
       }
       viewtop = $(document).scrollTop() - this.el.position().top;
+      viewheight = window.innerHeight;
+      viewstartrow = this.pixelToRow(viewtop);
+      viewendrow = this.pixelToRow(viewtop + viewheight);
+      if (viewstartrow < 0) {
+        viewstartrow = 0;
+      }
+      if (viewendrow >= this.settings.rows) {
+        viewendrow = this.settings.rows - 1;
+      }
+      if (this.settings.view.start !== viewstartrow || this.settings.view.end !== viewendrow) {
+        this.settings.view.start = viewstartrow;
+        this.settings.view.end = viewendrow;
+        this.trigger('viewchange', [viewstartrow, viewendrow, this.settings.rows]);
+      }
       if (Math.abs(this.settings.reload.last - viewtop) < (this.settings.reload.min * this.settings.lineHeight)) {
         return false;
       }
       this.settings.reload.last = viewtop;
-      viewheight = window.innerHeight;
-      viewstartrow = this.pixelToRow(viewtop);
-      viewendrow = this.pixelToRow(viewtop + viewheight);
-      startrow = viewstartrow - this.settings.view.distance;
-      endrow = viewendrow + this.settings.view.distance;
+      startrow = viewstartrow - this.settings.cache.distance;
+      endrow = viewendrow + this.settings.cache.distance;
       if (startrow < 0) {
         startrow = 0;
       }
       if (endrow >= this.settings.rows) {
         endrow = this.settings.rows - 1;
       }
-      this.log('viewstartrow: ' + viewstartrow + ' viewendrow: ' + viewendrow + ' startrow: ' + startrow + ' endrow: ' + endrow + ' @el.position().top: ' + this.el.position().top);
-      if (this.settings.view.start !== startrow || this.settings.view.end !== endrow) {
+      if (this.settings.cache.start !== startrow || this.settings.cache.end !== endrow) {
         this.loading = true;
-        this.settings.view.start = startrow;
-        this.settings.view.end = endrow;
+        this.trigger('loading', true);
+        this.settings.cache.start = startrow;
+        this.settings.cache.end = endrow;
         this.loadRows(startrow, endrow);
         return true;
       }
@@ -221,7 +236,6 @@
     ScrollTable.prototype.loadRows = function(start, end) {
       var items, params, range, _i, _results,
         _this = this;
-      this.log('load ' + start + ' ' + end);
       range = (function() {
         _results = [];
         for (var _i = start; start <= end ? _i <= end : _i >= end; start <= end ? _i++ : _i--){ _results.push(_i); }
@@ -236,6 +250,7 @@
       });
       if (items.length < 1) {
         this.loading = false;
+        this.trigger('loading', false);
         return;
       }
       params = '';
@@ -255,6 +270,7 @@
             _this.addRow(row);
           }
           _this.loading = false;
+          _this.trigger('loading', false);
           if (_this.settings.clean.distance > 0) {
             _this.cleanup(start, end);
           }
@@ -326,8 +342,8 @@
       return $('[data-pos="' + pos + '"]').remove();
     };
 
-    ScrollTable.prototype.trigger = function(event) {
-      return this.settings.el.trigger(event);
+    ScrollTable.prototype.trigger = function(event, data) {
+      return this.settings.el.trigger(event, data);
     };
 
     return ScrollTable;

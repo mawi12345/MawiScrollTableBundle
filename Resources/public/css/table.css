@@ -9,3 +9,38 @@
 	height: 35px;
 	overflow: hidden;
 }
+
+.infobox {
+	position: fixed;
+	height: 100%;
+}
+
+.infobox .from {
+	position: fixed;
+	top: 0px;
+}
+
+.infobox .to {
+	position: fixed;
+	bottom: 0px;
+}
+
+.infobox .loading {
+	position: fixed;
+	right: 0px;
+	top: 0px;
+	font-size: 16px;
+	padding: 5px 12px;
+}
+
+.infobox .value {
+	border: 1px solid #DDD;
+	padding: 5px 14px;
+}
+.filter-wrap {
+	margin-top: 30px;
+}
+
+.lbg {
+	background-color:#DEE9FC;
+}

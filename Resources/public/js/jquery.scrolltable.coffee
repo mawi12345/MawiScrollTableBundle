@@ -8,10 +8,13 @@ class ScrollTable
 			selector:
 				row: '.st-row'
 				space: '.st-space'
-			view:
+			cache:
 				start: 0
 				end: 0
 				distance: 60
+			view:
+				start: 0
+				end: 0
 			reload:
 				last: -1000
 				min: 10
@@ -71,8 +74,8 @@ class ScrollTable
 			@el.find(@settings.selector.space).remove().first().appendTo(@el);
 			@fill()
 			@settings.reload.last = -1000
-			@settings.view.start = 0
-			@settings.view.end = 0
+			@settings.cache.start = 0
+			@settings.cache.end = 0
 				
 			@scroll()
 	fill: ->
@@ -106,26 +109,37 @@ class ScrollTable
 	scroll: =>
 		return off if @loading is on
 		viewtop = $(document).scrollTop() - @el.position().top
-		return off if Math.abs(@settings.reload.last - viewtop) < (@settings.reload.min * @settings.lineHeight)
-		@settings.reload.last = viewtop
+		
 		viewheight = window.innerHeight
 		viewstartrow = @pixelToRow(viewtop)
 		viewendrow = @pixelToRow(viewtop+viewheight)
-		startrow = viewstartrow - @settings.view.distance
-		endrow = viewendrow + @settings.view.distance
+		viewstartrow = 0 if viewstartrow < 0
+		viewendrow = @settings.rows - 1 if viewendrow >= @settings.rows
+		if (@settings.view.start isnt viewstartrow or @settings.view.end isnt viewendrow)
+			@settings.view.start = viewstartrow
+			@settings.view.end = viewendrow
+			@trigger('viewchange', [viewstartrow, viewendrow, @settings.rows])
+		
+		
+		return off if Math.abs(@settings.reload.last - viewtop) < (@settings.reload.min * @settings.lineHeight)
+		@settings.reload.last = viewtop
+		
+		startrow = viewstartrow - @settings.cache.distance
+		endrow = viewendrow + @settings.cache.distance
 		startrow = 0 if startrow < 0
 		endrow = @settings.rows - 1 if endrow >= @settings.rows
-		@log('viewstartrow: '+viewstartrow+' viewendrow: '+viewendrow+' startrow: '+startrow+' endrow: '+endrow+' @el.position().top: '+@el.position().top)
-		if (@settings.view.start isnt startrow or @settings.view.end isnt endrow)
+		#@log('viewstartrow: '+viewstartrow+' viewendrow: '+viewendrow+' startrow: '+startrow+' endrow: '+endrow+' @el.position().top: '+@el.position().top)
+		if (@settings.cache.start isnt startrow or @settings.cache.end isnt endrow)
 			@loading = on
-			@settings.view.start = startrow
-			@settings.view.end = endrow
+			@trigger('loading', on)
+			@settings.cache.start = startrow
+			@settings.cache.end = endrow
 			@loadRows(startrow, endrow)
 			return on
 		return off
 	
 	loadRows: (start, end) =>
-		@log('load '+start+' '+end);
+		#@log('load '+start+' '+end);
 		#@loading = off
 		#return;
 		range = [start..end]
@@ -136,6 +150,7 @@ class ScrollTable
 				return 0
 		if items.length < 1
 			@loading = off
+			@trigger('loading', off)
 			return
 		params = ''
 		params = @addRowParam(params, items)
@@ -152,6 +167,7 @@ class ScrollTable
 				for row in rows
 					@addRow(row)
 				@loading = off
+				@trigger('loading', off)
 				@cleanup(start, end) if @settings.clean.distance > 0
 				@fill()
 				# check if user has moved while table was loading
@@ -193,8 +209,8 @@ class ScrollTable
 	delRow: (pos) =>
 		#@log('del:'+ pos)
 		$('[data-pos="'+pos+'"]').remove()
-	trigger: (event) =>
-		@settings.el.trigger(event)
+	trigger: (event, data) =>
+		@settings.el.trigger(event, data)
 		
 $ ->
 	$.fn.extend
