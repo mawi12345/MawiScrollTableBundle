@@ -1,221 +1,260 @@
 # Reference jQuery
 $ = jQuery
 
+class Connector
+  constructor: (@name, @loading) ->
+  setup: (fail, done) ->
+    done();
+  info: (filter, fail, done) ->
+    @loading(on)
+    @loading(off)
+    done({rows: 0, pagesize: 20})
+  page: (filter, order, number, fail, done) ->
+    @loading(on)
+    @loading(off)
+    done('')
+
+class SymfonyJqueryAjaxConnector extends Connector
+  constructor: (@name, @loading) ->
+  info: (filter, fail, done) ->
+    @loading(on)
+    rurl = Routing.generate('scrolltable_info', {'name': @name})
+    $.ajax
+      url: rurl
+      type: 'GET'
+      dataType: 'xml'
+      success: (info) =>
+        @loading(off)
+        done({pages: $(info).find('pc').text()*1})
+      error: () =>
+        @loading(off)
+        fail()
+  page: (filter, order, number, fail, done) ->
+    @loading(on)
+    order = 'default' if order.length <= 0
+    rurl = Routing.generate('scrolltable_page', {'name': @name, 'number': number, 'order': order, 'filter': filter})
+    $.ajax
+      url: rurl
+      type: 'GET'
+      dataType: 'html'
+      success: (response) =>
+        page = $(response)
+        @loading(off)
+        done(page)
+      error: =>
+        @loading(off)
+        fail()
+        
 class ScrollTable
-	constructor: (@options) ->
-		defaults =
-			debug: true
-			selector:
-				row: '.st-row'
-				space: '.st-space'
-			cache:
-				start: 0
-				end: 0
-				distance: 60
-			view:
-				start: 0
-				end: 0
-			reload:
-				last: -1000
-				min: 10
-			clean:
-				distance: 120
-			orderBy: []
-			filter: {}
-		@settings = $.extend defaults, options
-		@el = @settings.el
-		@loading = off
-		@name = @el.attr('data-scrolltable');
-		@infoUrl = Routing.generate('scrolltable_info', {'name': @name})
-		@rowsUrl = Routing.generate('scrolltable_rows', {'name': @name})
-		@settings.lineHeight = @el.find(@settings.selector.row).first().outerHeight(); 
-		@resize () => 
-			@fill()
-			@scroll()
-			$(window).on('scroll', @scroll)
-		
-	log: (msg) ->
-		console?.log msg if @settings.debug
-	
-	addFilterParam: (string) =>
-		for key, value of @settings.filter
-			string += '&' if string isnt ''
-			string += 'f[\''+key+'\']='+value
-		return string
-		
-	addArrayParm: (string, key, array) =>
-		for value in array
-			string += '&' if string isnt ''
-			string += key+'[]='+value
-		return string
-	addOrderByParam: (string) =>
-		@addArrayParm(string, 'o', @settings.orderBy)
-	addRowParam: (string, items) =>
-		@addArrayParm(string, 'r', items)
-	info: (callback) ->
-		$.ajax
-			url: @infoUrl
-			data: @addFilterParam('')
-			type: 'POST'
-			dataType: 'xml'
-			success: (info) =>
-				callback({rows: $(info).find('rc').text() })
-				
-	resize: (callback) ->
-		@info((info) =>
-			#@log(info);
-			@settings.rows = info.rows*1
-			@el.height(info.rows * @settings.lineHeight + 'px')
-			callback()
-		)
-	refresh: =>
-		@resize () =>
-			@el.find(@settings.selector.row).remove()
-			@el.find(@settings.selector.space).remove().first().appendTo(@el);
-			@fill()
-			@settings.reload.last = -1000
-			@settings.cache.start = 0
-			@settings.cache.end = 0
-				
-			@scroll()
-	fill: ->
-		rows = @el.find(@settings.selector.row)
-		space = @el.find(@settings.selector.space).detach().first()
-		@settings.positions = []
-		for row in rows
-			pos = $(row).attr('data-pos')*1
-			nextsmaller = -1
-			for p in @settings.positions
-				nextsmaller = p if p < pos
-			@settings.positions.push pos
-			# if no row before pos and pos greater then 0
-			if nextsmaller < 0 and pos > 0
-				$(row).before(space.clone().height(pos * @settings.lineHeight+'px'))
-			# if an row is before pos but not on pos - 1
-			if nextsmaller > 0 and (nextsmaller + 1) < pos
-				$(row).before(space.clone().height((pos-nextsmaller-1) * @settings.lineHeight+'px'))
-			#@log('pos: '+pos+' next: '+nextsmaller)
-		
-		if @settings.positions.length > 0
-			footerSpaceSize = @settings.rows - @settings.positions[@settings.positions.length - 1] - 1
-		else
-			footerSpaceSize = @settings.rows
-		if footerSpaceSize > 0
-			@el.append(space.clone().height((footerSpaceSize * @settings.lineHeight)+'px'))
-	
-	pixelToRow:(pixel) ->
-		Math.floor(pixel / @settings.lineHeight)
-	
-	scroll: =>
-		return off if @loading is on
-		viewtop = $(document).scrollTop() - @el.position().top
-		
-		viewheight = window.innerHeight
-		viewstartrow = @pixelToRow(viewtop)
-		viewendrow = @pixelToRow(viewtop+viewheight)
-		viewstartrow = 0 if viewstartrow < 0
-		viewendrow = @settings.rows - 1 if viewendrow >= @settings.rows
-		if (@settings.view.start isnt viewstartrow or @settings.view.end isnt viewendrow)
-			@settings.view.start = viewstartrow
-			@settings.view.end = viewendrow
-			@trigger('viewchange', [viewstartrow, viewendrow, @settings.rows])
-		
-		
-		return off if Math.abs(@settings.reload.last - viewtop) < (@settings.reload.min * @settings.lineHeight)
-		@settings.reload.last = viewtop
-		
-		startrow = viewstartrow - @settings.cache.distance
-		endrow = viewendrow + @settings.cache.distance
-		startrow = 0 if startrow < 0
-		endrow = @settings.rows - 1 if endrow >= @settings.rows
-		#@log('viewstartrow: '+viewstartrow+' viewendrow: '+viewendrow+' startrow: '+startrow+' endrow: '+endrow+' @el.position().top: '+@el.position().top)
-		if (@settings.cache.start isnt startrow or @settings.cache.end isnt endrow)
-			@loading = on
-			@trigger('loading', on)
-			@settings.cache.start = startrow
-			@settings.cache.end = endrow
-			@loadRows(startrow, endrow)
-			return on
-		return off
-	
-	loadRows: (start, end) =>
-		#@log('load '+start+' '+end);
-		#@loading = off
-		#return;
-		range = [start..end]
-		items = $.grep range, (item) =>
-			if $.inArray(item, @settings.positions) < 0
-				return 1
-			else
-				return 0
-		if items.length < 1
-			@loading = off
-			@trigger('loading', off)
-			return
-		params = ''
-		params = @addRowParam(params, items)
-		params = @addFilterParam(params)
-		params = @addOrderByParam(params)
-		$.ajax
-			url: @rowsUrl
-			data: params
-			type: 'POST'
-			dataType: 'html'
-			success: (response) =>
-				rows = $(response).find(@settings.selector.row)
-				#@log(rows)
-				for row in rows
-					@addRow(row)
-				@loading = off
-				@trigger('loading', off)
-				@cleanup(start, end) if @settings.clean.distance > 0
-				@fill()
-				# check if user has moved while table was loading
-				@scroll()
-	addRow: (row) =>
-		pos = $(row).attr('data-pos')*1
-		if @settings.positions.length is 0
-			@el.append(row)
-			@settings.positions.push(pos)
-		#@log(row)
-		min = minpos = @settings.rows
-		for p, i in @settings.positions
-			continue if p is pos
-			distance = Math.abs(p - pos)
-			if distance < min
-				min = distance
-				minpos = p
-			break if distance <= 1 or p > pos
-				
-		#@log('pos: '+pos+' p:' + p + ' min: ' + min + ' minpos:' + minpos + ' distance:'+distance)
-		#@log($('[data-pos="'+minpos+'"]'))
-		if minpos < pos
-			$(row).insertAfter('[data-pos="'+minpos+'"]')
-			@settings.positions.splice(minpos,0,pos)
-		else
-			$(row).insertBefore('[data-pos="'+minpos+'"]')
-			@settings.positions.splice(minpos-1,0,pos)
-	cleanup: (start, end) =>
-		cleanstart = start - @settings.clean.distance
-		cleanend = end + @settings.clean.distance
-		#@log('cleanstart: '+cleanstart)
-		#@log('cleanend: '+cleanend)
-		for pos in @settings.positions
-			if cleanstart > 0
-				@delRow(pos) if pos < cleanstart
-			if cleanend < @settings.rows
-				@delRow(pos) if pos > cleanend
-				
-	delRow: (pos) =>
-		#@log('del:'+ pos)
-		$('[data-pos="'+pos+'"]').remove()
-	trigger: (event, data) =>
-		@settings.el.trigger(event, data)
-		
+  constructor: (@options) ->
+    defaults =
+      debug: false
+      selector:
+        page: '.st-page'
+        space: '.st-space'
+      distance: 5
+      clean: 8
+      order: ''
+      filter: ''
+    @settings = $.extend defaults, options
+    @el = @settings.el
+    @initState =
+      pages: 0
+      pageHeight: 0
+      last: -10000
+      pages: []
+      viewStartPage: 0
+      viewEndPage: 0
+      needCleanup: off
+      needFill: off
+      needScroll: off
+    @state = {}
+    @resetState()
+    @connectorLoading = off
+    @connections = 0
+    @name = @el.attr('data-scrolltable');
+    @connector = new SymfonyJqueryAjaxConnector(@name, @connectorLoadingStateChange)
+    @log('page height: '+ @state.pageHeight)
+    @connector.setup @errorHandler, () =>
+      @log('connector finished setup')
+      # init
+      @resize () =>
+        @fill()
+        $(window).on('scroll', @scroll)
+        @scroll()
+  
+  resetState: =>
+    for key of @initState
+      @state[key] = @initState[key]
+    @state.pageHeight = @el.find(@settings.selector.page).first().outerHeight();
+  
+  log: (msg) =>
+    console?.log msg if @settings.debug
+  
+  errorHandler: =>
+    @log('ERROR')
+  
+  connectorLoadingStateChange: (state) =>
+    if state
+      @connections++ 
+    else
+      @connections--
+    if @connections <= 0 and @connectorLoading
+      @log('connector has finished loading')
+      @trigger('loading', off)
+      @connectorLoading = off
+      if @state.needCleanup
+        @state.needCleanup = off
+        @cleanup()
+      if @state.needFill
+        @state.needFill = off
+        @fill()   
+      if @state.needScroll
+        @state.needScroll = off
+        @scroll()  
+    else if @connections > 0 and not @connectorLoading
+      @log('connector is loading')
+      @trigger('loading', on)
+      @connectorLoading = on
+  
+  info: (done) =>
+    @connector.info @settings.filter, @errorHandler, done
+    
+  page: (number, done) =>
+    @connector.page @settings.filter, @settings.order, number, @errorHandler, done
+        
+  resize: (done) ->
+    @info (info) =>
+      @log(info);
+      @state.pages = info.pages
+      @el.height(info.pages * @state.pageHeight + 'px')
+      @log(@state);
+      done()
+  
+  refresh: =>
+    @resetState()
+    @resize () =>
+      @el.find(@settings.selector.page).remove()
+      @el.find(@settings.selector.space).remove().first().appendTo(@el);
+      @fill()
+      @scroll()
+      
+  fill: ->
+    pages = @el.find(@settings.selector.page)
+    space = @el.find(@settings.selector.space).detach().first()
+    @state.positions = []
+    for page in pages
+      pos = $(page).attr('data-p')*1
+      nextsmaller = -1
+      for p in @state.positions
+        nextsmaller = p if p < pos
+      @state.positions.push pos
+      # if no row before pos and pos greater then 0
+      if nextsmaller < 0 and pos > 0
+        $(page).before(space.clone().height(pos * @state.pageHeight+'px'))
+      # if an row is before pos but not on pos - 1
+      if nextsmaller > 0 and (nextsmaller + 1) < pos
+        $(page).before(space.clone().height((pos-nextsmaller-1) * @state.pageHeight+'px'))
+      #@log('pos: '+pos+' next: '+nextsmaller)
+    
+    if @state.positions.length > 0
+      footerSpaceSize = @state.pages - @state.positions[@state.positions.length - 1] - 1
+    else
+      footerSpaceSize = @state.pages
+    if footerSpaceSize > 0
+      @el.append(space.clone().height((footerSpaceSize * @state.pages)+'px'))
+  
+  pixelToPage:(pixel) ->
+    Math.floor(pixel / @state.pageHeight)
+  
+  scroll: =>
+    if @connectorLoading is on
+      @state.needScroll = on
+      return off
+    viewtop = $(document).scrollTop() - @el.position().top
+    
+    viewHeight = window.innerHeight
+    @state.viewStartPage = @pixelToPage(viewtop)
+    @state.viewEndPage = @pixelToPage(viewtop+viewHeight)
+    @state.viewStartPage = 0 if @state.viewStartPage < 0
+    @state.viewEndPage = @state.pages - 1 if @state.viewEndPage >= @settings.pages
+    
+    return off if Math.abs(@state.last - viewtop) < (@settings.distance * @state.pageHeight)
+    @state.last = viewtop
+    
+    startPage = @state.viewStartPage - @settings.distance
+    endPage = @state.viewEndPage + @settings.distance
+    startPage = 0 if startPage < 0
+    endPage = @state.pages - 1 if endPage >= @state.pages
+    #@log('viewStartPage: '+@state.viewStartPage+' viewEndPage: '+@state.viewEndPage+' startPage: '+startPage+' endPage: '+endPage+' @el.position().top: '+@el.position().top)
+    @loadPages(startPage, endPage)
+    return on
+    
+  loadPages: (start, end) =>
+    @log('load pages: '+start+' - '+end);
+    range = [start..end]
+    items = $.grep range, (item) =>
+      if $.inArray(item, @state.positions) < 0
+        return 1
+      else
+        return 0
+    return off if items.length < 1 
+    #@log(items);
+    @state.needCleanup = on
+    for num in items
+      @page num, (page) =>
+        @addPage(page)
+        @fill()
+        
+  addPage: (page) =>
+    #@log(page)
+    pos = $(page).attr('data-p')*1
+    if @state.positions.length is 0
+      @el.append(page)
+      @state.positions.push(pos)
+      return on
+    min = minpos = @state.pages
+    for p, i in @state.positions
+      continue if p is pos
+      distance = Math.abs(p - pos)
+      if distance < min
+        min = distance
+        minpos = p
+      break if distance <= 1 or p > pos
+        
+    #@log('pos: '+pos+' p:' + p + ' min: ' + min + ' minpos:' + minpos + ' distance:'+distance)
+    @delPage(pos)
+    if minpos < pos
+      $(page).insertAfter('[data-p="'+minpos+'"]')
+      @state.positions.splice(minpos,0,pos)
+    else
+      $(page).insertBefore('[data-p="'+minpos+'"]')
+      @state.positions.splice(minpos-1,0,pos)
+      
+  cleanup: () =>
+    cleanstart = @state.viewStartPage - @settings.clean
+    cleanend = @state.viewEndPage + @settings.clean
+    cleanstart = 0 if cleanstart < 0
+    cleanend = @state.pages - 1 if cleanend >= @settings.pages
+    #@log('cleanstart: '+cleanstart)
+    #@log('cleanend: '+cleanend)
+    for pos in @state.positions
+      if cleanstart > 0
+        @delPage(pos) if pos < cleanstart
+      if cleanend < @state.pages
+        @delPage(pos) if pos > cleanend
+        
+  delPage: (pos) =>
+    #@log('del:'+ pos)
+    $('[data-p="'+pos+'"]').remove()
+    
+  trigger: (event, data) =>
+    @settings.el.trigger(event, data)
+    
 $ ->
-	$.fn.extend
-		scrollTable: (options) ->
-			$(this).each ->
-				$(this).data('ScrollTable', new ScrollTable($.extend {el: $(this)}, options))
-			
-	$('[data-scrolltable]').scrollTable();
+  $.fn.extend
+    scrollTable: (options) ->
+      $(this).each ->
+        $(this).data('ScrollTable', new ScrollTable($.extend {el: $(this)}, options))
+      
+  $('[data-scrolltable]').scrollTable();

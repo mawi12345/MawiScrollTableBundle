@@ -2,12 +2,11 @@
 namespace Mawi\Bundle\ScrollTableBundle\Service;
 
 use Symfony\Component\HttpFoundation\Request;
-
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\DependencyInjection\ContainerAware;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Cache;
 
 /**
  * @author Martin Wind
@@ -30,45 +29,24 @@ class ScrollTableService extends ContainerAware
 	}
 	
 	/**
-	 * @Route("/{name}/rows", requirements={"name" = "\w+"}, name="scrolltable_rows", options={"expose" = true})
+	 * @Route("/{name}/page/{number}/{order}/{filter}", defaults={"filter" = "", "order" = "default"}, requirements={"name" = "\w+"}, name="scrolltable_page", options={"expose" = true})
+	 * @Cache(maxage="15")
 	 */
-	public function getRows($name)
+	public function getPage($name, $number, $order = 'default', $filter = '')
 	{
 		$table = $this->getTable($name);
-		$request = $this->container->get('request');
-		$positions = $request->request->get('r');
-		$orderBy = $request->request->get('o', array());
-		$filter = $request->request->get('f', array());
-		
-		$positions[] = -1;
-		$intervals = array();
-		$start = $positions[0];
-		$last = $start;
-				
-		foreach ($positions as $position) {
-			if ($position > ($last + 1) || $position < 0) {
-				$intervals[] = array('start' => $start, 'end' => $last);
-				$start = $position;
-			}
-			$last = $position;
-		}
-		
-		$response = '<r>';
-		foreach ($intervals as $interval) {
-			$response .= $table->getRows($interval['start'], $interval['end'], $orderBy, $filter);
-		}
-		$response .= '</r>';
+		$response = $table->getPage($number, $order, $filter);
 		return new Response($response);
 	}
 	
 	/**
-	 * @Route("/{name}/info", requirements={"name" = "\w+"}, name="scrolltable_info", options={"expose" = true})
+	 * @Route("/{name}/info/{filter}", defaults={"filter" = ""}, requirements={"name" = "\w+"}, name="scrolltable_info", options={"expose" = true})
+	 * @Cache(maxage="15")
 	 */
-	public function getInfo($name)
+	public function getInfo($name, $filter = "")
 	{
 		$table = $this->getTable($name);
 		$request = $this->container->get('request');
-		$filter = $request->request->get('f', array());
-		return new Response('<info><rc>'.$table->getRowCount($filter).'</rc></info>');
+		return new Response('<info><pc>'.($table->getPageCount($filter)).'</pc></info>');
 	}
 }
