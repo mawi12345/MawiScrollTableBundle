@@ -5,4 +5,5 @@ interface ScrollTableInterface
 {
 	public function getPage($num, $orderBy = '', $filter = '');
 	public function getPageCount($filter = '');
+	public function getInfo($filter = '');
 }

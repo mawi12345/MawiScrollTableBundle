@@ -43,10 +43,15 @@ class ScrollTableService extends ContainerAware
 	 * @Route("/{name}/info/{filter}", defaults={"filter" = ""}, requirements={"name" = "\w+"}, name="scrolltable_info", options={"expose" = true})
 	 * @Cache(maxage="15")
 	 */
-	public function getInfo($name, $filter = "")
+	public function getInfo($name, $filter = '')
 	{
 		$table = $this->getTable($name);
 		$request = $this->container->get('request');
-		return new Response('<info><pc>'.($table->getPageCount($filter)).'</pc></info>');
+		$info = $table->getInfo($filter);
+		if ($info) {
+			return new Response('<info><pc>'.($table->getPageCount($filter)).'</pc><ext>'.$info.'</ext></info>');
+		} else {
+			return new Response('<info><pc>'.($table->getPageCount($filter)).'</pc></info>');
+		}
 	}
 }

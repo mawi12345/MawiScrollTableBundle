@@ -18,14 +18,14 @@ class SymfonyJqueryAjaxConnector extends Connector
   constructor: (@name, @loading) ->
   info: (filter, fail, done) ->
     @loading(on)
-    rurl = Routing.generate('scrolltable_info', {'name': @name})
+    rurl = Routing.generate('scrolltable_info', {'name': @name, 'filter': filter})
     $.ajax
       url: rurl
       type: 'GET'
       dataType: 'xml'
       success: (info) =>
         @loading(off)
-        done({pages: $(info).find('pc').text()*1})
+        done({pages: $(info).find('pc').text()*1, meta: $(info).find('ext')})
       error: () =>
         @loading(off)
         fail()
@@ -48,11 +48,11 @@ class SymfonyJqueryAjaxConnector extends Connector
 class ScrollTable
   constructor: (@options) ->
     defaults =
-      debug: false
+      debug: off
       selector:
         page: '.st-page'
         space: '.st-space'
-      distance: 5
+      distance: 3
       clean: 8
       order: ''
       filter: ''
@@ -72,13 +72,16 @@ class ScrollTable
     @resetState()
     @connectorLoading = off
     @connections = 0
-    @name = @el.attr('data-scrolltable');
+    @name = @settings.name || @el.attr('data-scrolltable');
     @connector = new SymfonyJqueryAjaxConnector(@name, @connectorLoadingStateChange)
     @log('page height: '+ @state.pageHeight)
     @connector.setup @errorHandler, () =>
       @log('connector finished setup')
       # init
       @resize () =>
+      	if @settings.refresh
+          @el.find(@settings.selector.page).remove()
+          @el.find(@settings.selector.space).remove().first().appendTo(@el)
         @fill()
         $(window).on('scroll', @scroll)
         @scroll()
@@ -118,24 +121,27 @@ class ScrollTable
       @connectorLoading = on
   
   info: (done) =>
-    @connector.info @settings.filter, @errorHandler, done
+    @connector.info @settings.filter, @errorHandler, (data) =>
+    	@log(data)
+    	@el.trigger('info', [data])
+    	done(data)
     
   page: (number, done) =>
     @connector.page @settings.filter, @settings.order, number, @errorHandler, done
         
   resize: (done) ->
     @info (info) =>
-      @log(info);
       @state.pages = info.pages
       @el.height(info.pages * @state.pageHeight + 'px')
-      @log(@state);
+      @log(@state)
+      @el.trigger('resize', [@state])
       done()
   
   refresh: =>
     @resetState()
     @resize () =>
       @el.find(@settings.selector.page).remove()
-      @el.find(@settings.selector.space).remove().first().appendTo(@el);
+      @el.find(@settings.selector.space).remove().first().appendTo(@el)
       @fill()
       @scroll()
       
@@ -187,7 +193,7 @@ class ScrollTable
     startPage = 0 if startPage < 0
     endPage = @state.pages - 1 if endPage >= @state.pages
     #@log('viewStartPage: '+@state.viewStartPage+' viewEndPage: '+@state.viewEndPage+' startPage: '+startPage+' endPage: '+endPage+' @el.position().top: '+@el.position().top)
-    @loadPages(startPage, endPage)
+    @loadPages(startPage, endPage) if endPage >= 0
     return on
     
   loadPages: (start, end) =>
@@ -243,6 +249,11 @@ class ScrollTable
         @delPage(pos) if pos < cleanstart
       if cleanend < @state.pages
         @delPage(pos) if pos > cleanend
+ 
+  updateCriteria: (order, filter) =>
+    @settings.order = order if order?
+    @settings.filter = filter if filter?
+    @refresh()
         
   delPage: (pos) =>
     #@log('del:'+ pos)
@@ -257,4 +268,4 @@ $ ->
       $(this).each ->
         $(this).data('ScrollTable', new ScrollTable($.extend {el: $(this)}, options))
       
-  $('[data-scrolltable]').scrollTable();
+  # $('[data-scrolltable]').scrollTable();
